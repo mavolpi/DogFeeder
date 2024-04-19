@@ -1,0 +1,44 @@
+from flask import Flask, request, jsonify
+import sqlite3
+from twilio.rest import Client
+
+app = Flask(__name__)
+
+# Twilio credentials
+account_sid = 'YOUR_ACCOUNT_SID'
+auth_token = 'YOUR_AUTH_TOKEN'
+twilio_number = +14157422898
+client = Client(account_sid, auth_token)
+
+# Database connection
+def log_feeding_event(message):
+    conn = sqlite3.connect('dog_feeding.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO feeding_events (message) VALUES (?)", (message,))
+    conn.commit()
+    conn.close()
+
+@app.route('/sms', methods=['POST'])
+def sms():
+    message_body = request.form['Body']
+    from_number = request.form['From']
+
+    if "fed the dog" in message_body.lower():
+        log_feeding_event(message_body)
+        notify_family(from_number, message_body)
+        return jsonify(success=True), 200
+    return jsonify(success=False), 200
+
+def notify_family(from_number, message):
+    family_numbers = [+16503804337, +16509332330, +16503509542]
+    for number in family_numbers:
+        client.messages.create(
+            to=number,
+            from_=twilio_number,
+            body=f"Notice: The dog was fed by {from_number}: {message}"
+        )
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
